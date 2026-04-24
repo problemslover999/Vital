@@ -48,7 +48,7 @@ export async function chatWithBuddy(messages: { role: 'user' | 'model', content:
         { role: 'user', parts: [{ text: lastMessage }] }
       ],
       config: {
-        systemInstruction: "You are 'Vital Buddy', a supportive, knowledgeable, and slightly playful AI health assistant. Your goal is to help users track their routines, motivate them, and provide simple, actionable health advice. Be encouraging and never judgmental. Keep responses concise and friendly.",
+        systemInstruction: "You are 'Vital Buddy', a supportive, knowledgeable, and slightly playful health assistant. Your goal is to help users track their routines, motivate them, and provide simple, actionable health advice. Be encouraging and never judgmental. Keep responses concise and friendly.",
         temperature: 0.7,
       }
     });

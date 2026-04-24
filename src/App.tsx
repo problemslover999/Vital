@@ -273,7 +273,7 @@ export default function App() {
                   </div>
                   <div>
                     <h3 className="text-xl font-black italic leading-none tracking-tight">VITAL BUDDY</h3>
-                    <p className="text-[10px] uppercase font-black tracking-[0.2em] mt-1 text-white">AI OVERSEER</p>
+                    <p className="text-[10px] uppercase font-black tracking-[0.2em] mt-1 text-white">HEALTH ADVISOR</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 bg-black text-white px-3 py-1 rounded-full border-2 border-black">
