@@ -1,20 +1,22 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Zest ⚡
 
-# Run and deploy your AI Studio app
+Your AI health buddy and routine tracker for a better lifestyle. Designed with a vibrant, high-energy aesthetic to keep you moving.
 
-This contains everything you need to run your app locally.
+## [🚀 Open Live App](https://ais-pre-abww34gmxhd3a56qvpsssc-457678354041.asia-southeast1.run.app)
 
-View your app in AI Studio: https://ai.studio/apps/d20186ce-adf9-49de-9563-4107d2085aad
+---
 
-## Run Locally
+### Key Features
+- **Vital Buddy**: A supportive AI assistant that motivates and guides your health journey.
+- **Routine Tracker**: Tick off your daily missions and build long-term streaks.
+- **Progress Insights**: Visualize your consistency with easy-to-read charts.
+- **Smart Motivation**: Personalized AI-generated messages to start your day right.
 
-**Prerequisites:**  Node.js
+### Tech Stack
+- **Frontend**: React + Vite + Tailwind CSS
+- **Animations**: Framer Motion
+- **AI Engine**: Google Gemini API
+- **Charts**: Recharts
 
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+---
+*Built with ❤️ in AI Studio*
