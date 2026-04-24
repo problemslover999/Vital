@@ -1,8 +1,8 @@
-# Zest ⚡
+# Vital ⚡
 
 Your AI health buddy and routine tracker for a better lifestyle. Designed with a vibrant, high-energy aesthetic to keep you moving.
 
-## [🚀 Open Live App](https://ais-pre-abww34gmxhd3a56qvpsssc-457678354041.asia-southeast1.run.app)
+## [🚀 Open Live App](https://problemslover999.github.io/Vital/)
 
 ---
 
