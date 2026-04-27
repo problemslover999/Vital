@@ -56,6 +56,20 @@ service cloud.firestore {
              data.userId == request.auth.uid;
     }
 
+    function isValidGoal(data) {
+      return data.keys().hasAll(['type', 'target', 'userId']) &&
+             data.type in ['weight', 'water', 'sleep', 'steps'] &&
+             data.target is number &&
+             data.userId == request.auth.uid;
+    }
+
+    function isValidInsight(data) {
+      return data.keys().hasAll(['content', 'timestamp', 'userId']) &&
+             data.content is string && data.content.size() <= 10000 &&
+             data.timestamp is number &&
+             data.userId == request.auth.uid;
+    }
+
     match /users/{userId} {
       allow get: if isOwner(userId);
       allow create: if isOwner(userId) && isValidUser(incoming());
@@ -85,6 +99,21 @@ service cloud.firestore {
         allow get: if isOwner(userId) && isValidId(messageId);
         allow create: if isOwner(userId) && isValidId(messageId) && isValidMessage(incoming());
         allow delete: if isOwner(userId) && isValidId(messageId);
+      }
+
+      match /profile/data {
+        allow get, write: if isOwner(userId);
+      }
+
+      match /goals/{goalId} {
+        allow list: if isOwner(userId);
+        allow get, create, update, delete: if isOwner(userId) && isValidId(goalId) && (request.method != 'create' && request.method != 'update' || isValidGoal(incoming()));
+      }
+
+      match /insights/{insightId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidInsight(incoming());
+        allow delete: if isOwner(userId);
       }
     }
   }

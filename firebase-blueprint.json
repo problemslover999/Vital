@@ -53,12 +53,57 @@
         "userId": { "type": "string" }
       },
       "required": ["role", "content", "timestamp", "userId"]
+    },
+    "Goal": {
+      "title": "Goal",
+      "description": "User specific health goals",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["weight", "water", "sleep", "steps"] },
+        "target": { "type": "number" },
+        "current": { "type": "number" },
+        "unit": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["type", "target", "userId"]
+    },
+    "HealthInsight": {
+      "title": "HealthInsight",
+      "description": "AI-generated health assessment",
+      "type": "object",
+      "properties": {
+        "content": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "category": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["content", "timestamp", "userId"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Detailed user health metrics",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "age": { "type": "number" },
+        "weight": { "type": "number" },
+        "height": { "type": "number" },
+        "gender": { "type": "string" },
+        "activityLevel": { "type": "string" },
+        "dailyCalorieTarget": { "type": "number" },
+        "onboarded": { "type": "boolean" }
+      },
+      "required": ["name", "onboarded"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "User",
       "description": "User profile data"
+    },
+    "/users/{userId}/profile/data": {
+      "schema": "UserProfile",
+      "description": "Historical health metrics and preferences"
     },
     "/users/{userId}/routines/{routineId}": {
       "schema": "Routine",
@@ -71,6 +116,14 @@
     "/users/{userId}/messages/{messageId}": {
       "schema": "Message",
       "description": "Chat history for the user"
+    },
+    "/users/{userId}/goals/{goalId}": {
+      "schema": "Goal",
+      "description": "User goals"
+    },
+    "/users/{userId}/insights/{insightId}": {
+      "schema": "HealthInsight",
+      "description": "Weekly/Daily AI insights"
     }
   }
 }

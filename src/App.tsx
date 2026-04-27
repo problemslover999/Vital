@@ -15,7 +15,8 @@ import {
   LayoutDashboard,
   Calendar,
   LogIn,
-  LogOut
+  LogOut,
+  User as UserIcon
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { Routine, Message, UserProgress } from '@/src/types';
@@ -41,8 +42,16 @@ import {
   saveProgress, 
   fetchProgressHistory, 
   saveChatMessage, 
-  subscribeToMessages 
+  subscribeToMessages,
+  subscribeToGoals,
+  saveGoal,
+  fetchLastInsight,
+  saveInsight,
+  fetchProfile,
+  saveProfile,
+  deleteRoutine
 } from '@/src/services/firestoreService';
+import { UserGoal, HealthInsight, UserProfile } from '@/src/types';
 
 // Mock/Initial Data
 const DEFAULT_ROUTINES: Routine[] = [
@@ -57,8 +66,11 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [loginLoading, setLoginLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'routines' | 'buddy' | 'stats'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'routines' | 'buddy' | 'stats' | 'profile'>('dashboard');
   const [routines, setRoutines] = useState<Routine[]>(DEFAULT_ROUTINES);
+  const [goals, setGoals] = useState<UserGoal[]>([]);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [lastInsight, setLastInsight] = useState<HealthInsight | null>(null);
   const [motivation, setMotivation] = useState<string>('');
   const [isBuddyTyping, setIsBuddyTyping] = useState(false);
   const [chatMessages, setChatMessages] = useState<Message[]>([
@@ -103,15 +115,35 @@ export default function App() {
       }
     });
 
-    const loadProgress = async () => {
-      const data = await fetchProgressHistory();
-      if (data.length > 0) setProgressData(data);
-    };
-    loadProgress();
+    const unsubscribeGoals = subscribeToGoals((data) => {
+      if (data.length > 0) {
+        setGoals(data);
+      } else {
+        // Init default goals
+        const defaultGoals: UserGoal[] = [
+          { type: 'water', target: 8, current: 0, unit: 'glasses' },
+          { type: 'steps', target: 10000, current: 0, unit: 'steps' }
+        ];
+        defaultGoals.forEach(g => saveGoal(g));
+      }
+    });
+
+      const loadData = async () => {
+        const pData = await fetchProgressHistory();
+        if (pData.length > 0) setProgressData(pData);
+        
+        const insight = await fetchLastInsight();
+        setLastInsight(insight);
+
+        const uprofile = await fetchProfile();
+        if (uprofile) setProfile(uprofile);
+      };
+      loadData();
 
     return () => {
       unsubscribeRoutines();
       unsubscribeMessages();
+      unsubscribeGoals();
     };
   }, [user]);
 
@@ -150,18 +182,31 @@ export default function App() {
   const handleAddRoutine = async () => {
     const title = prompt("Enter mission title:");
     if (!title) return;
+
+    const category = prompt("Enter category (physical, mental, nutrition, habit):", "habit") as Routine['category'];
+    if (!['physical', 'mental', 'nutrition', 'habit'].includes(category)) {
+      alert("Invalid category. Defaulting to habit.");
+    }
     
     const newRoutine: Routine = {
       id: Math.random().toString(36).substr(2, 9),
       title,
-      description: "Custom user-defined mission",
-      category: 'habit',
+      description: `Custom ${category} mission`,
+      category: ['physical', 'mental', 'nutrition', 'habit'].includes(category) ? category : 'habit',
       frequency: 'daily',
       completed: false,
       streak: 0
     };
     
     await saveRoutine(newRoutine);
+  };
+
+  const handleUpdateGoal = async (type: UserGoal['type'], increment: number) => {
+    const goal = goals.find(g => g.type === type);
+    if (!goal) return;
+
+    const updated: UserGoal = { ...goal, current: Math.max(0, goal.current + increment) };
+    await saveGoal(updated);
   };
 
   const handleDeleteRoutine = async (id: string) => {
@@ -175,10 +220,27 @@ export default function App() {
       const loadHistory = async () => {
         const history = await fetchProgressHistory();
         if (history.length > 0) setProgressData(history);
+        
+        // Generate insight if old or missing
+        if (!lastInsight || (Date.now() - lastInsight.timestamp > 86400000)) {
+           const statsString = history.map(h => `${h.date}: ${h.completionRate}%`).join(', ');
+           try {
+             const report = await getHealthReport(statsString);
+             const newInsight: HealthInsight = {
+               content: report,
+               timestamp: Date.now(),
+               category: 'weekly_review'
+             };
+             await saveInsight(newInsight);
+             setLastInsight(newInsight);
+           } catch (err) {
+             console.error("AI Insight failed", err);
+           }
+        }
       };
       loadHistory();
     }
-  }, [activeTab, user]);
+  }, [activeTab, user, lastInsight]);
 
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || !user) return;
@@ -252,6 +314,8 @@ export default function App() {
   }
 
   const completionRate = Math.round((routines.filter(r => r.completed).length / routines.length) * 100);
+  const goalProgress = goals.length > 0 ? goals.reduce((acc, g) => acc + (Math.min(1, g.current / g.target)), 0) / goals.length : 0;
+  const vitalityScore = Math.round((completionRate * 0.6) + (goalProgress * 100 * 0.4));
 
   return (
     <div className="min-h-screen text-[#141414] font-sans selection:bg-yellow-400">
@@ -284,6 +348,12 @@ export default function App() {
             onClick={() => setActiveTab('stats')} 
             icon={<BarChart3 size={24} />} 
             label="Stats"
+          />
+          <NavItem 
+            active={activeTab === 'profile'} 
+            onClick={() => setActiveTab('profile')} 
+            icon={<UserIcon size={24} />} 
+            label="Profile"
           />
           <div className="hidden md:mt-auto md:flex flex-col gap-4">
              <NavItem 
@@ -343,6 +413,46 @@ export default function App() {
                   <Heart size={200} strokeWidth={2} fill="black" />
                 </div>
               </div>
+
+               {/* Goals / Targets section */}
+              <section className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-2xl font-black italic tracking-tight">System Status</h3>
+                </div>
+                <div className="bg-black text-white p-10 border-4 border-black rounded-[2.5rem] shadow-[8px_8px_0px_#FFE66D] relative overflow-hidden group">
+                  <div className="relative z-10">
+                    <h4 className="font-black text-2xl italic mb-1 uppercase tracking-tighter text-vibrant-sun">Vitality Score</h4>
+                    <div className="flex items-baseline gap-2">
+                       <span className="text-8xl font-black italic tracking-tighter">{vitalityScore}</span>
+                       <span className="text-xl font-bold opacity-40 italic">/ 100</span>
+                    </div>
+                    <p className="text-sm mt-6 font-bold uppercase tracking-tight opacity-70">
+                      {vitalityScore > 80 ? "PEAK PERFORMANCE ATTAINED." : vitalityScore > 50 ? "MOMENTUM BUILDING." : "RECOVERY MODE ACTIVE."}
+                    </p>
+                  </div>
+                  <div className="absolute -right-10 -bottom-10 opacity-20 rotate-12 group-hover:scale-110 transition-transform">
+                    <Zap size={240} strokeWidth={4} fill="#FFE66D" color="#FFE66D" />
+                  </div>
+                </div>
+              </section>
+
+              <section className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-2xl font-black italic tracking-tight">Active Objectives</h3>
+                  <div className="flex items-center gap-2 px-3 py-1 bg-black text-white rounded-full text-[10px] font-black uppercase tracking-widest">
+                    Live Sync
+                  </div>
+                </div>
+                <div className="grid md:grid-cols-2 gap-6">
+                  {goals.map(goal => (
+                    <GoalTracker 
+                      key={goal.type} 
+                      goal={goal} 
+                      onUpdate={(inc) => handleUpdateGoal(goal.type, inc)} 
+                    />
+                  ))}
+                </div>
+              </section>
 
               {/* Quick Actions / Categories */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
@@ -555,11 +665,31 @@ export default function App() {
                       <p className="text-sm mt-6 font-bold uppercase tracking-tight opacity-70">Focus on "Deep Work" to expand.</p>
                     </div>
 
-                    <div className="bg-vibrant-sun p-10 border-4 border-black rounded-[2.5rem] shadow-[8px_8px_0px_#000]">
+                    <div className="bg-vibrant-sun p-10 border-4 border-black rounded-[2.5rem] shadow-[8px_8px_0px_#000] relative">
                       <h4 className="font-black text-xl italic mb-4 uppercase tracking-tight">VITAL INTEL</h4>
                       <div className="text-sm font-bold leading-relaxed italic">
-                        "Your hydration levels are peaking! You're operating at 110% capacity compared to peers."
+                        {lastInsight?.content || "Gathering data for your next breakthrough insight. Keep pushing!"}
                       </div>
+                      {lastInsight && (
+                        <div className="mt-4 text-[10px] font-black opacity-40 uppercase tracking-widest">
+                          Generated {new Date(lastInsight.timestamp).toLocaleDateString()}
+                        </div>
+                      )}
+                      
+                      <button 
+                        onClick={async () => {
+                           const statsString = progressData.map(h => `${h.date}: ${h.completionRate}%`).join(', ');
+                           const report = await getHealthReport(statsString);
+                           const newInsight: HealthInsight = { content: report, timestamp: Date.now(), category: 'user_requested' };
+                           await saveInsight(newInsight);
+                           setLastInsight(newInsight);
+                        }}
+                        className="mt-6 flex items-center gap-2 bg-black text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-transform"
+                      >
+                         <Zap size={14} className="text-vibrant-sun" fill="currentColor" />
+                         GENERATE NEW REPORT
+                      </button>
+
                       <div className="mt-8 flex items-center gap-3">
                         <div className="flex -space-x-3">
                           {[1,2,3].map(i => <div key={i} className="w-8 h-8 rounded-full bg-white border-3 border-black" />)}
@@ -567,8 +697,114 @@ export default function App() {
                         <span className="text-[10px] font-black uppercase tracking-widest text-black/60">+1.2k Vitalizers active</span>
                       </div>
                     </div>
+
+                    <div className="bg-white p-8 border-4 border-black rounded-[2.5rem] shadow-[8px_8px_0px_#000]">
+                      <h4 className="font-black text-xl italic mb-4 uppercase tracking-tighter">Mission History</h4>
+                      <div className="space-y-3 overflow-y-auto max-h-[300px] pr-2 custom-scrollbar">
+                        {[...progressData].reverse().map((p, i) => (
+                          <div key={i} className="flex justify-between items-center p-4 border-2 border-black rounded-xl text-xs font-bold uppercase italic">
+                            <span className="opacity-40">{p.date}</span>
+                            <div className="flex items-center gap-2">
+                               <div className="w-20 h-2 bg-black/5 rounded-full overflow-hidden">
+                                  <div className="h-full bg-black" style={{ width: `${p.completionRate}%` }} />
+                               </div>
+                               <span>{p.completionRate}%</span>
+                            </div>
+                          </div>
+                        ))}
+                        {progressData.length === 0 && (
+                          <div className="text-center py-8 opacity-40 font-black italic">NO INTEL LOGGED YET.</div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'profile' && (
+            <motion.div
+              key="profile"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-10"
+            >
+              <header>
+                <h1 className="text-6xl font-black italic tracking-tighter uppercase">PROFILE.</h1>
+                <p className="text-lg font-bold opacity-60 mt-2 uppercase tracking-wide">Secure Biometrics & Data</p>
+              </header>
+
+              <div className="grid md:grid-cols-2 gap-8">
+                <div className="bg-white p-10 border-4 border-black rounded-[2.5rem] shadow-[12px_12px_0px_#000]">
+                  <h3 className="font-black text-2xl italic mb-8 uppercase tracking-tight">Personal Specs</h3>
+                  <form className="space-y-6" onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.currentTarget);
+                    const updatedProfile: UserProfile = {
+                      name: formData.get('name') as string || (profile?.name || user.displayName || ''),
+                      age: Number(formData.get('age')),
+                      weight: Number(formData.get('weight')),
+                      height: Number(formData.get('height')),
+                      activityLevel: formData.get('activityLevel') as UserProfile['activityLevel'],
+                      dailyCalorieTarget: Number(formData.get('calories')),
+                      onboarded: true
+                    };
+                    saveProfile(updatedProfile);
+                    setProfile(updatedProfile);
+                    alert("Metrics updated and synced correctly.");
+                  }}>
+                    <div className="space-y-2">
+                      <label className="text-xs font-black uppercase tracking-widest opacity-40">Agent Name</label>
+                      <input name="name" defaultValue={profile?.name || user.displayName || ''} className="w-full p-4 bg-vibrant-bg border-3 border-black rounded-xl font-black italic uppercase" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-xs font-black uppercase tracking-widest opacity-40">Age</label>
+                        <input name="age" type="number" defaultValue={profile?.age} className="w-full p-4 bg-vibrant-bg border-3 border-black rounded-xl font-black italic uppercase" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-black uppercase tracking-widest opacity-40">Weight (kg)</label>
+                        <input name="weight" type="number" defaultValue={profile?.weight} className="w-full p-4 bg-vibrant-bg border-3 border-black rounded-xl font-black italic uppercase" />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-black uppercase tracking-widest opacity-40">Activity Level</label>
+                      <select name="activityLevel" defaultValue={profile?.activityLevel} className="w-full p-4 bg-vibrant-bg border-3 border-black rounded-xl font-black italic uppercase">
+                        <option value="sedentary">Sedentary</option>
+                        <option value="light">Lightly Active</option>
+                        <option value="moderate">Moderately Active</option>
+                        <option value="active">Very Active</option>
+                      </select>
+                    </div>
+                    <button type="submit" className="w-full py-4 bg-black text-white rounded-xl font-black italic tracking-widest hover:scale-105 active:scale-95 transition-transform">
+                      UPDATE BASE DATA
+                    </button>
+                  </form>
+                </div>
+
+                <div className="space-y-8">
+                  <div className="bg-vibrant-sun p-10 border-4 border-black rounded-[2.5rem] shadow-[8px_8px_0px_#000]">
+                    <h3 className="font-black text-2xl italic mb-4 uppercase tracking-tight">Security</h3>
+                    <p className="text-sm font-bold opacity-70 mb-6">Your health data is encrypted and synced to your private shard. Only you hold the keys.</p>
+                    <button 
+                      onClick={() => logout()}
+                      className="flex items-center gap-2 text-vibrant-coral font-black italic border-b-3 border-vibrant-coral leading-none"
+                    >
+                      <LogOut size={20} />
+                      TERMINATE SESSION
+                    </button>
+                  </div>
+                  <div className="bg-vibrant-sky/20 p-10 border-4 border-black border-dashed rounded-[2.5rem]">
+                    <h3 className="font-black text-xl italic mb-4 uppercase tracking-tight opacity-40">Hardware Sync</h3>
+                    <p className="text-xs font-bold opacity-30 uppercase tracking-widest">Connect Apple Health or Google Fit to automate biometric collection.</p>
+                    <div className="mt-6 flex gap-4 opacity-20 filter grayscale">
+                       <div className="w-12 h-12 bg-black rounded-lg" />
+                       <div className="w-12 h-12 bg-black rounded-lg" />
+                    </div>
+                  </div>
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -605,6 +841,51 @@ function NavItem({ active, onClick, icon, label }: { active: boolean, onClick: (
         />
       )}
     </button>
+  );
+}
+
+function GoalTracker({ goal, onUpdate }: { goal: UserGoal, onUpdate: (inc: number) => void }) {
+  const progress = Math.min(100, Math.round((goal.current / goal.target) * 100));
+  
+  return (
+    <div className="p-8 border-4 border-black bg-white rounded-[2rem] vibrant-shadow group relative overflow-hidden">
+      <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+        {goal.type === 'water' ? <Droplets size={80} /> : <Zap size={80} />}
+      </div>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h4 className="font-black text-xl italic uppercase tracking-tighter">{goal.type}</h4>
+          <p className="text-[10px] font-black opacity-40 uppercase tracking-[0.2em]">{goal.unit}</p>
+        </div>
+        <div className="text-right">
+          <span className="text-3xl font-black italic">{goal.current}</span>
+          <span className="text-sm font-bold opacity-40"> / {goal.target}</span>
+        </div>
+      </div>
+      
+      <div className="w-full h-8 bg-black/5 rounded-full border-3 border-black overflow-hidden relative mb-6">
+        <motion.div 
+          initial={{ width: 0 }}
+          animate={{ width: `${progress}%` }}
+          className="h-full bg-vibrant-sun border-r-3 border-black"
+        />
+      </div>
+
+      <div className="flex gap-4">
+        <button 
+          onClick={() => onUpdate(goal.type === 'steps' ? 1000 : 1)}
+          className="flex-1 py-3 bg-black text-white rounded-xl font-black text-xs italic tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all"
+        >
+          {goal.type === 'steps' ? '+1K STEPS' : '+1 UNIT'}
+        </button>
+        <button 
+          onClick={() => onUpdate(goal.type === 'steps' ? -1000 : -1)}
+          className="px-4 py-3 border-3 border-black rounded-xl font-black text-xs hover:bg-black/5 transition-all"
+        >
+          -
+        </button>
+      </div>
+    </div>
   );
 }
 

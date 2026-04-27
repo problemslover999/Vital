@@ -1,3 +1,14 @@
+export interface UserProfile {
+  name: string;
+  age?: number;
+  weight?: number;
+  height?: number;
+  gender?: string;
+  activityLevel?: 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
+  dailyCalorieTarget?: number;
+  onboarded: boolean;
+}
+
 export interface Routine {
   id: string;
   title: string;
@@ -17,4 +28,19 @@ export interface Message {
   role: 'user' | 'model';
   content: string;
   timestamp: number;
+}
+
+export interface UserGoal {
+  id?: string;
+  type: 'weight' | 'water' | 'sleep' | 'steps';
+  target: number;
+  current: number;
+  unit: string;
+}
+
+export interface HealthInsight {
+  id?: string;
+  content: string;
+  timestamp: number;
+  category?: string;
 }

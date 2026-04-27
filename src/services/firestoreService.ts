@@ -9,10 +9,11 @@ import {
   query, 
   where, 
   orderBy, 
-  onSnapshot 
+  onSnapshot,
+  limit
 } from 'firebase/firestore';
 import { db, auth } from '@/src/lib/firebase';
-import { Routine, Message, UserProgress } from '@/src/types';
+import { Routine, Message, UserProgress, UserGoal, HealthInsight, UserProfile } from '@/src/types';
 
 export enum OperationType {
   CREATE = 'create',
@@ -192,4 +193,93 @@ export function subscribeToMessages(callback: (messages: Message[]) => void) {
   }, (error) => {
     handleFirestoreError(error, OperationType.GET, `users/${user.uid}/messages`);
   });
+}
+
+// Goals
+export async function saveGoal(goal: UserGoal) {
+  const user = auth.currentUser;
+  if (!user) return;
+
+  const path = `users/${user.uid}/goals/${goal.id || goal.type}`;
+  try {
+    const data = { ...goal, userId: user.uid };
+    await setDoc(doc(db, path), data);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export function subscribeToGoals(callback: (goals: UserGoal[]) => void) {
+  const user = auth.currentUser;
+  if (!user) return () => {};
+
+  const colRef = collection(db, `users`, user.uid, 'goals');
+  return onSnapshot(colRef, (snapshot) => {
+    const goals = snapshot.docs.map(doc => doc.data() as UserGoal);
+    callback(goals);
+  }, (error) => {
+    handleFirestoreError(error, OperationType.GET, `users/${user.uid}/goals`);
+  });
+}
+
+// Insights
+export async function saveInsight(insight: HealthInsight) {
+  const user = auth.currentUser;
+  if (!user) return;
+
+  const id = `${insight.timestamp}-${Math.random().toString(36).substr(2, 9)}`;
+  const path = `users/${user.uid}/insights/${id}`;
+  try {
+    await setDoc(doc(db, path), { ...insight, userId: user.uid });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function fetchLastInsight() {
+  const user = auth.currentUser;
+  if (!user) return null;
+
+  const path = `users/${user.uid}/insights`;
+  try {
+    const q = query(collection(db, path), orderBy('timestamp', 'desc'), limit(1));
+    const snapshot = await getDocs(q);
+    if (!snapshot.empty) {
+      return snapshot.docs[0].data() as HealthInsight;
+    }
+    return null;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, path);
+    return null;
+  }
+}
+
+// Profile
+export async function saveProfile(profile: UserProfile) {
+  const user = auth.currentUser;
+  if (!user) return;
+
+  const path = `users/${user.uid}/profile/data`;
+  try {
+    await setDoc(doc(db, path), profile);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function fetchProfile() {
+  const user = auth.currentUser;
+  if (!user) return null;
+
+  const path = `users/${user.uid}/profile/data`;
+  try {
+    const docSnap = await getDoc(doc(db, path));
+    if (docSnap.exists()) {
+      return docSnap.data() as UserProfile;
+    }
+    return null;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, path);
+    return null;
+  }
 }
