@@ -1,0 +1,98 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 0.1 Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // 1. Validation Blueprints
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email']) &&
+             data.keys().size() >= 2 &&
+             data.uid == request.auth.uid &&
+             data.email is string && data.email.size() <= 128;
+    }
+
+    function isValidRoutine(data) {
+      return data.keys().hasAll(['title', 'category', 'userId']) &&
+             data.title is string && data.title.size() <= 100 &&
+             data.category in ['physical', 'mental', 'nutrition', 'habit'] &&
+             data.userId == request.auth.uid &&
+             (!('streak' in data) || data.streak is int) &&
+             (!('completed' in data) || data.completed is bool);
+    }
+
+    function isValidProgress(data) {
+      return data.keys().hasAll(['date', 'completionRate', 'userId']) &&
+             data.date is string && data.date.size() <= 20 &&
+             data.completionRate is number &&
+             data.userId == request.auth.uid;
+    }
+
+    function isValidMessage(data) {
+      return data.keys().hasAll(['role', 'content', 'timestamp', 'userId']) &&
+             data.role in ['user', 'model'] &&
+             data.content is string && data.content.size() <= 5000 &&
+             data.timestamp is number &&
+             data.userId == request.auth.uid;
+    }
+
+    // 2. Collection Rules
+
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming()) &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'lastActive', 'email']);
+      
+      match /routines/{routineId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(routineId);
+        allow create: if isOwner(userId) && isValidId(routineId) && isValidRoutine(incoming());
+        allow update: if isOwner(userId) && isValidId(routineId) && isValidRoutine(incoming()) &&
+                        incoming().userId == existing().userId; // Immutable owner
+        allow delete: if isOwner(userId) && isValidId(routineId);
+      }
+
+      match /progress/{dateId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(dateId);
+        allow create: if isOwner(userId) && isValidId(dateId) && isValidProgress(incoming());
+        allow update: if isOwner(userId) && isValidId(dateId) && isValidProgress(incoming()) &&
+                        incoming().userId == existing().userId;
+        allow delete: if isOwner(userId) && isValidId(dateId);
+      }
+
+      match /messages/{messageId} {
+        allow list: if isOwner(userId);
+        allow get: if isOwner(userId) && isValidId(messageId);
+        allow create: if isOwner(userId) && isValidId(messageId) && isValidMessage(incoming());
+        // Messages are usually immutable in this app
+        allow delete: if isOwner(userId) && isValidId(messageId);
+      }
+    }
+  }
+}

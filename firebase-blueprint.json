@@ -1,0 +1,76 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and global health statistics",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastActive": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Routine": {
+      "title": "Routine",
+      "description": "A health task or habit tracked by the user",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string", "enum": ["physical", "mental", "nutrition", "habit"] },
+        "frequency": { "type": "string", "enum": ["daily", "weekly"] },
+        "completed": { "type": "boolean" },
+        "streak": { "type": "integer" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "category", "userId"]
+    },
+    "Progress": {
+      "title": "Progress",
+      "description": "Daily completion rate statistics",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string" },
+        "completionRate": { "type": "number" },
+        "userId": { "type": "string" }
+      },
+      "required": ["date", "completionRate", "userId"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Chat message between user and health buddy",
+      "type": "object",
+      "properties": {
+        "role": { "type": "string", "enum": ["user", "model"] },
+        "content": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "userId": { "type": "string" }
+      },
+      "required": ["role", "content", "timestamp", "userId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile data"
+    },
+    "/users/{userId}/routines/{routineId}": {
+      "schema": "Routine",
+      "description": "User's individual health routines"
+    },
+    "/users/{userId}/progress/{dateId}": {
+      "schema": "Progress",
+      "description": "Daily progress tracking records"
+    },
+    "/users/{userId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Chat history for the user"
+    }
+  }
+}

@@ -13,7 +13,9 @@ import {
   Dumbbell,
   Search,
   LayoutDashboard,
-  Calendar
+  Calendar,
+  LogIn,
+  LogOut
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { Routine, Message, UserProgress } from '@/src/types';
@@ -30,6 +32,17 @@ import {
   Area
 } from 'recharts';
 import ReactMarkdown from 'react-markdown';
+import { auth, signInWithGoogle, logout } from '@/src/lib/firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { 
+  ensureUserProfile, 
+  saveRoutine, 
+  subscribeToRoutines, 
+  saveProgress, 
+  getProgress, 
+  saveChatMessage, 
+  subscribeToMessages 
+} from '@/src/services/firestoreService';
 
 // Mock/Initial Data
 const DEFAULT_ROUTINES: Routine[] = [
@@ -41,67 +54,164 @@ const DEFAULT_ROUTINES: Routine[] = [
 ];
 
 export default function App() {
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [loginLoading, setLoginLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'routines' | 'buddy' | 'stats'>('dashboard');
-  const [routines, setRoutines] = useState<Routine[]>(() => {
-    const saved = localStorage.getItem('vital_routines');
-    return saved ? JSON.parse(saved) : DEFAULT_ROUTINES;
-  });
+  const [routines, setRoutines] = useState<Routine[]>(DEFAULT_ROUTINES);
   const [motivation, setMotivation] = useState<string>('');
   const [isBuddyTyping, setIsBuddyTyping] = useState(false);
-  const [chatMessages, setChatMessages] = useState<Message[]>(() => {
-    const saved = localStorage.getItem('vital_chat');
-    return saved ? JSON.parse(saved) : [
-      { role: 'model', content: "Hi! I'm Vital Buddy. How can I help you focus on your health today?", timestamp: Date.now() }
-    ];
-  });
-  const [progressData, setProgressData] = useState<UserProgress[]>(() => {
-    const saved = localStorage.getItem('vital_progress');
-    return saved ? JSON.parse(saved) : [
-      { date: 'Mon', completionRate: 60 },
-      { date: 'Tue', completionRate: 80 },
-      { date: 'Wed', completionRate: 40 },
-      { date: 'Thu', completionRate: 90 },
-      { date: 'Fri', completionRate: 70 },
-      { date: 'Sat', completionRate: 85 },
-      { date: 'Sun', completionRate: 75 },
-    ];
-  });
+  const [chatMessages, setChatMessages] = useState<Message[]>([
+    { role: 'model', content: "Hi! I'm Vital Buddy. How can I help you focus on your health today?", timestamp: Date.now() }
+  ]);
+  const [progressData, setProgressData] = useState<UserProgress[]>([
+    { date: 'Mon', completionRate: 0 },
+    { date: 'Tue', completionRate: 0 },
+    { date: 'Wed', completionRate: 0 },
+    { date: 'Thu', completionRate: 0 },
+    { date: 'Fri', completionRate: 0 },
+    { date: 'Sat', completionRate: 0 },
+    { date: 'Sun', completionRate: 0 },
+  ]);
 
   useEffect(() => {
-    localStorage.setItem('vital_routines', JSON.stringify(routines));
-  }, [routines]);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setUser(user);
+      setAuthLoading(false);
+      if (user) {
+        await ensureUserProfile();
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem('vital_chat', JSON.stringify(chatMessages));
-  }, [chatMessages]);
+    if (!user) return;
+
+    const unsubscribeRoutines = subscribeToRoutines((data) => {
+      if (data.length > 0) {
+        setRoutines(data);
+      } else {
+        // Init default routines for new user in Firestore
+        DEFAULT_ROUTINES.forEach(r => saveRoutine(r));
+      }
+    });
+
+    const unsubscribeMessages = subscribeToMessages((data) => {
+      if (data.length > 0) {
+        setChatMessages(data);
+      }
+    });
+
+    const loadProgress = async () => {
+      const data = await getProgress();
+      if (data.length > 0) setProgressData(data);
+    };
+    loadProgress();
+
+    return () => {
+      unsubscribeRoutines();
+      unsubscribeMessages();
+    };
+  }, [user]);
 
   useEffect(() => {
     const fetchMotivation = async () => {
-      const msg = await getMotivationalMessage();
+      const msg = await getMotivationalMessage(user?.displayName || "friend");
       setMotivation(msg);
     };
-    if (!motivation) fetchMotivation();
-  }, [motivation]);
+    if (!motivation && user) fetchMotivation();
+  }, [motivation, user]);
 
-  const toggleRoutine = (id: string) => {
-    setRoutines(prev => prev.map(r => 
-      r.id === id ? { ...r, completed: !r.completed, streak: !r.completed ? r.streak + 1 : Math.max(0, r.streak - 1) } : r
-    ));
+  const toggleRoutine = async (id: string) => {
+    const routine = routines.find(r => r.id === id);
+    if (!routine) return;
+
+    const updated = { 
+      ...routine, 
+      completed: !routine.completed, 
+      streak: !routine.completed ? routine.streak + 1 : Math.max(0, routine.streak - 1) 
+    };
+    
+    // Optimistic update
+    setRoutines(prev => prev.map(r => r.id === id ? updated : r));
+    await saveRoutine(updated);
+
+    // Update progress stats for today
+    const today = new Date().toLocaleDateString('en-US', { weekday: 'short' });
+    const currentRoutines = routines.map(r => r.id === id ? updated : r);
+    const newCompletionRate = Math.round((currentRoutines.filter(r => r.completed).length / currentRoutines.length) * 100);
+    
+    const progress: UserProgress = { date: today, completionRate: newCompletionRate };
+    await saveProgress(progress);
+    setProgressData(prev => prev.map(p => p.date === today ? progress : p));
   };
 
   const handleSendMessage = async (text: string) => {
-    if (!text.trim()) return;
+    if (!text.trim() || !user) return;
     
     const newUserMsg: Message = { role: 'user', content: text, timestamp: Date.now() };
-    setChatMessages(prev => [...prev, newUserMsg]);
+    await saveChatMessage(newUserMsg);
+    
     setIsBuddyTyping(true);
-
     const response = await chatWithBuddy([...chatMessages, newUserMsg]);
     
     const newAiMsg: Message = { role: 'model', content: response, timestamp: Date.now() };
-    setChatMessages(prev => [...prev, newAiMsg]);
+    await saveChatMessage(newAiMsg);
     setIsBuddyTyping(false);
   };
+
+  const handleLogin = async () => {
+    if (loginLoading) return;
+    setLoginLoading(true);
+    try {
+      await signInWithGoogle();
+    } catch (error: any) {
+      if (error?.code === 'auth/popup-closed-by-user' || error?.code === 'auth/cancelled-popup-request') {
+        // Expected if user cancels, no need for major error UI
+        console.log("Login cancelled/interrupted");
+      } else {
+        console.error("Login failed", error);
+      }
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-vibrant-bg">
+        <div className="w-16 h-16 border-4 border-black border-t-vibrant-sun rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-vibrant-bg flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-24 h-24 buddy-gradient border-4 border-black rounded-full flex items-center justify-center vibrant-shadow mb-8">
+          <span className="text-white font-black text-5xl italic tracking-tighter">V</span>
+        </div>
+        <h1 className="text-6xl font-black italic tracking-tighter mb-4">VITAL.</h1>
+        <p className="text-xl font-bold opacity-60 mb-12 max-w-md">Your personalized journey to peak performance starts here.</p>
+        <button 
+          onClick={handleLogin}
+          disabled={loginLoading}
+          className={cn(
+            "flex items-center gap-4 bg-black text-white px-8 py-5 rounded-[2rem] font-black text-xl italic tracking-tight vibrant-shadow hover:scale-105 active:scale-95 transition-all",
+            loginLoading && "opacity-50 cursor-not-allowed scale-95 shadow-none"
+          )}
+        >
+          {loginLoading ? (
+            <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <LogIn size={24} />
+          )}
+          {loginLoading ? 'CONNECTING...' : 'LOGIN WITH GOOGLE'}
+        </button>
+      </div>
+    );
+  }
 
   const completionRate = Math.round((routines.filter(r => r.completed).length / routines.length) * 100);
 
@@ -137,12 +247,12 @@ export default function App() {
             icon={<BarChart3 size={24} />} 
             label="Stats"
           />
-          <div className="hidden md:mt-auto md:block">
+          <div className="hidden md:mt-auto md:flex flex-col gap-4">
              <NavItem 
               active={false} 
-              onClick={() => {}} 
-              icon={<Settings size={24} />} 
-              label="Settings"
+              onClick={() => logout()} 
+              icon={<LogOut size={24} />} 
+              label="Logout"
             />
           </div>
         </div>
@@ -166,7 +276,7 @@ export default function App() {
                   </div>
                   <div>
                     <span className="text-xs font-black uppercase tracking-[0.2em] text-[#141414]/60">Your Morning Vibe</span>
-                    <h1 className="text-5xl md:text-7xl font-black italic tracking-tighter mt-1">VITAL.</h1>
+                    <h1 className="text-5xl md:text-7xl font-black italic tracking-tighter mt-1">{user?.displayName?.split(' ')[0] || 'VITAL'}.</h1>
                   </div>
                 </div>
                 <div className="flex items-center gap-4 bg-white p-5 border-3 border-black rounded-[2rem] vibrant-shadow-sm">

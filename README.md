@@ -15,7 +15,7 @@ Your health buddy and routine tracker for a better lifestyle. Designed with a vi
 ### Tech Stack
 - **Frontend**: React + Vite + Tailwind CSS
 - **Animations**: Framer Motion
-- **AI Engine**: Google Gemini API
+- **Engine**: Google Gemini API
 - **Charts**: Recharts
 
 ---
