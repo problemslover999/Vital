@@ -6,24 +6,21 @@ import { logout } from '../../lib/firebase';
 interface HeaderProps {
   user: any;
   onProfileClick: () => void;
-  forceShow?: boolean;
+  onHide?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ user, onProfileClick, forceShow = false }) => {
+export const Header: React.FC<HeaderProps> = ({ user, onProfileClick, onHide }) => {
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
-    // Reset visibility whenever the user identity is confirmed or forceShow changes
-    setIsVisible(true);
-
-    if (forceShow) return;
-
+    // Only run the hide timer ONCE on initial mount (login)
     const timer = setTimeout(() => {
       setIsVisible(false);
-    }, 7000); 
+      if (onHide) onHide();
+    }, 4000); // Reduced to 4 seconds
 
     return () => clearTimeout(timer);
-  }, [forceShow, user?.uid]); // Bind to user ID to ensure it fires after login sync
+  }, [user?.uid]); // Only reset if the actual user changes (login/logout)
 
   return (
     <AnimatePresence>

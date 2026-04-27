@@ -210,13 +210,17 @@ export default function App() {
   return (
     <div className="min-h-screen text-[#141414] font-sans selection:bg-yellow-400">
       <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
-      {activeTab !== 'profile' && (
+      
+      {/* 
+        The Header stays mounted globally so it only pops up ONCE per session.
+        We only hide it physically when on the 'profile' tab to avoid clutter.
+      */}
+      <div className={activeTab === 'profile' ? 'hidden' : 'block'}>
         <Header 
-          key={activeTab} 
           user={user} 
           onProfileClick={() => setActiveTab('profile')} 
         />
-      )}
+      </div>
 
       <main className="pb-24 md:pb-8 md:pl-28 lg:pl-32 max-w-7xl mx-auto px-6 pt-8">
         <AnimatePresence mode="wait">
