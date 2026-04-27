@@ -102,7 +102,10 @@ service cloud.firestore {
       }
 
       match /profile/data {
-        allow get, write: if isOwner(userId);
+        allow get: if isOwner(userId);
+        allow write: if isOwner(userId) && 
+                        (!('level' in incoming()) || incoming().level is int) &&
+                        (!('experience' in incoming()) || incoming().experience is int);
       }
 
       match /goals/{goalId} {

@@ -120,7 +120,7 @@ export function subscribeToRoutines(callback: (routines: Routine[]) => void) {
 }
 
 // Progress
-export async function saveProgress(progress: UserProgress) {
+export async function saveProgress(progress: UserProgress, xpGained: number = 0) {
   const user = auth.currentUser;
   if (!user) return;
 
@@ -130,6 +130,21 @@ export async function saveProgress(progress: UserProgress) {
       ...progress,
       userId: user.uid
     });
+
+    // Also update user profile with experience
+    if (xpGained > 0) {
+      const profileRef = doc(db, `users/${user.uid}/profile/data`);
+      const profileSnap = await getDoc(profileRef);
+      if (profileSnap.exists()) {
+        const currentData = profileSnap.data();
+        const newXP = (currentData.experience || 0) + xpGained;
+        const newLevel = Math.floor(Math.sqrt(newXP / 100)) + 1;
+        await updateDoc(profileRef, {
+          experience: newXP,
+          level: newLevel
+        });
+      }
+    }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -153,10 +168,10 @@ export async function fetchProgressHistory() {
 
   const path = `users/${user.uid}/progress`;
   try {
-    const q = query(collection(db, path), orderBy('date', 'desc'));
+    const q = query(collection(db, path), orderBy('date', 'desc'), limit(14));
     const snapshot = await getDocs(q);
-    // Return last 7 entries for the chart, reversed to chronological order
-    return snapshot.docs.map(doc => doc.data() as UserProgress).slice(0, 7).reverse();
+    // Return history reversed to chronological order
+    return snapshot.docs.map(doc => doc.data() as UserProgress).reverse();
   } catch (error) {
     handleFirestoreError(error, OperationType.LIST, path);
     return [];

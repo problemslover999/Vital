@@ -6,6 +6,8 @@ export interface UserProfile {
   gender?: string;
   activityLevel?: 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
   dailyCalorieTarget?: number;
+  level?: number;
+  experience?: number;
   onboarded: boolean;
 }
 
