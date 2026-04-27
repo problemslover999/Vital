@@ -2,22 +2,22 @@ import { GoogleGenAI } from "@google/genai";
 
 const apiKey = process.env.GEMINI_API_KEY;
 
-let aiClient: GoogleGenAI | null = null;
+let buddyClient: GoogleGenAI | null = null;
 
-function getAI() {
-  if (!aiClient) {
+function getBuddy() {
+  if (!buddyClient) {
     if (!apiKey) {
       throw new Error("GEMINI_API_KEY is not defined");
     }
-    aiClient = new GoogleGenAI({ apiKey });
+    buddyClient = new GoogleGenAI({ apiKey });
   }
-  return aiClient;
+  return buddyClient;
 }
 
 export async function getMotivationalMessage(userName: string = "friend") {
   try {
-    const ai = getAI();
-    const response = await ai.models.generateContent({
+    const buddy = getBuddy();
+    const response = await buddy.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: `Generate a short, powerful, and unique motivational message for someone starting their health and wellness journey today. Address them as ${userName}. Keep it under 20 words.`,
       config: {
@@ -33,7 +33,7 @@ export async function getMotivationalMessage(userName: string = "friend") {
 
 export async function chatWithBuddy(messages: { role: 'user' | 'model', content: string }[]) {
   try {
-    const ai = getAI();
+    const buddy = getBuddy();
     const history = messages.slice(0, -1).map(msg => ({
       role: msg.role,
       parts: [{ text: msg.content }]
@@ -41,7 +41,7 @@ export async function chatWithBuddy(messages: { role: 'user' | 'model', content:
     
     const lastMessage = messages[messages.length - 1].content;
 
-    const response = await ai.models.generateContent({
+    const response = await buddy.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: [
         ...history,
@@ -62,8 +62,8 @@ export async function chatWithBuddy(messages: { role: 'user' | 'model', content:
 
 export async function getHealthReport(completionStats: string) {
   try {
-    const ai = getAI();
-    const response = await ai.models.generateContent({
+    const buddy = getBuddy();
+    const response = await buddy.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: `Based on these routine completion statistics for the week: ${completionStats}. Provide a brief (2-3 sentences) insight report and one specific suggestion for improvement. Be positive.`,
       config: {

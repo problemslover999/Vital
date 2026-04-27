@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { Routine, Message, UserProgress } from '@/src/types';
-import { getMotivationalMessage, chatWithBuddy, getHealthReport } from '@/src/services/aiService';
+import { getMotivationalMessage, chatWithBuddy, getHealthReport } from '@/src/services/buddyService';
 import { 
   LineChart, 
   Line, 
@@ -209,6 +209,11 @@ export default function App() {
           )}
           {loginLoading ? 'CONNECTING...' : 'LOGIN WITH GOOGLE'}
         </button>
+        <div className="mt-8 p-4 bg-white/50 border-2 border-black/10 rounded-2xl max-w-sm">
+          <p className="text-[10px] font-black uppercase tracking-widest text-black/40 leading-relaxed">
+            Note: If the popup doesn't appear, please allow popups in your browser and ensure your App URL is authorized in the Firebase Console.
+          </p>
+        </div>
       </div>
     );
   }
