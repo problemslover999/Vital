@@ -39,7 +39,7 @@ import {
   saveRoutine, 
   subscribeToRoutines, 
   saveProgress, 
-  getProgress, 
+  fetchProgressHistory, 
   saveChatMessage, 
   subscribeToMessages 
 } from '@/src/services/firestoreService';
@@ -104,7 +104,7 @@ export default function App() {
     });
 
     const loadProgress = async () => {
-      const data = await getProgress();
+      const data = await fetchProgressHistory();
       if (data.length > 0) setProgressData(data);
     };
     loadProgress();
@@ -144,8 +144,41 @@ export default function App() {
     
     const progress: UserProgress = { date: today, completionRate: newCompletionRate };
     await saveProgress(progress);
-    setProgressData(prev => prev.map(p => p.date === today ? progress : p));
+    // Don't just set local state, we'll re-fetch if needed or just sync
   };
+
+  const handleAddRoutine = async () => {
+    const title = prompt("Enter mission title:");
+    if (!title) return;
+    
+    const newRoutine: Routine = {
+      id: Math.random().toString(36).substr(2, 9),
+      title,
+      description: "Custom user-defined mission",
+      category: 'habit',
+      frequency: 'daily',
+      completed: false,
+      streak: 0
+    };
+    
+    await saveRoutine(newRoutine);
+  };
+
+  const handleDeleteRoutine = async (id: string) => {
+    if (confirm("Abort this mission?")) {
+      await deleteRoutine(id);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'stats' && user) {
+      const loadHistory = async () => {
+        const history = await fetchProgressHistory();
+        if (history.length > 0) setProgressData(history);
+      };
+      loadHistory();
+    }
+  }, [activeTab, user]);
 
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || !user) return;
@@ -363,9 +396,13 @@ export default function App() {
                       routine={routine} 
                       showDetailed 
                       onToggle={() => toggleRoutine(routine.id)} 
+                      onDelete={() => handleDeleteRoutine(routine.id)}
                     />
                   ))}
-                  <button className="w-full py-8 border-4 border-dashed border-black/20 rounded-[2rem] flex items-center justify-center gap-3 hover:bg-white transition-all hover:border-black group active:scale-[0.98]">
+                  <button 
+                    onClick={handleAddRoutine}
+                    className="w-full py-8 border-4 border-dashed border-black/20 rounded-[2rem] flex items-center justify-center gap-3 hover:bg-white transition-all hover:border-black group active:scale-[0.98]"
+                  >
                     <Plus size={24} className="group-hover:rotate-90 transition-transform" />
                     <span className="font-black text-xl italic tracking-tight">ADD NEW MISSION</span>
                   </button>
@@ -589,31 +626,42 @@ function CategoryCard({ icon, title, count, color }: { icon: React.ReactNode, ti
   );
 }
 
-function RoutineItem({ routine, showDetailed, onToggle }: { routine: Routine, showDetailed?: boolean, onToggle: () => void }) {
+function RoutineItem({ routine, showDetailed, onToggle, onDelete }: { routine: Routine, showDetailed?: boolean, onToggle: () => void, onDelete?: () => void }) {
   const Icon = routine.category === 'physical' ? Dumbbell : routine.category === 'nutrition' ? Droplets : routine.category === 'mental' ? Moon : Zap;
 
   return (
-    <div 
-      className={cn(
-        "p-6 border-4 border-black rounded-[2rem] shadow-[4px_4px_0px_#000] transition-all flex items-center gap-6 group cursor-pointer active:translate-x-1 active:translate-y-1 active:shadow-none",
-        routine.completed ? "bg-vibrant-mint/30" : "bg-white hover:bg-vibrant-bg"
+    <div className="relative group/item w-full">
+      <div 
+        className={cn(
+          "p-6 border-4 border-black rounded-[2rem] shadow-[4px_4px_0px_#000] transition-all flex items-center gap-6 group cursor-pointer active:translate-x-1 active:translate-y-1 active:shadow-none",
+          routine.completed ? "bg-vibrant-mint/30" : "bg-white hover:bg-vibrant-bg"
+        )}
+        onClick={onToggle}
+      >
+        <div className={cn(
+          "w-16 h-16 rounded-[1.25rem] border-3 border-black flex items-center justify-center transition-all shadow-[2px_2px_0px_#000]",
+          routine.completed ? "bg-black text-white" : "bg-white text-black group-hover:bg-vibrant-sun"
+        )}>
+          {routine.completed ? <CheckCircle2 size={32} strokeWidth={3} /> : <Icon size={32} strokeWidth={2.5} />}
+        </div>
+        <div className="flex-1">
+          <h4 className={cn("text-xl font-black italic tracking-tighter uppercase transition-all leading-tight", routine.completed && "line-through opacity-40")}>{routine.title}</h4>
+          <p className="text-[10px] font-black uppercase tracking-widest mt-1 opacity-50">{routine.description}</p>
+        </div>
+        <div className="text-right">
+          <span className="text-xl font-black italic block">x{routine.streak}</span>
+          <span className="text-[10px] uppercase tracking-widest opacity-40 font-black">STREAK</span>
+        </div>
+      </div>
+      
+      {onDelete && (
+        <button 
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="absolute -right-2 -top-2 w-10 h-10 bg-vibrant-coral border-3 border-black rounded-full flex items-center justify-center opacity-0 group-hover/item:opacity-100 transition-opacity hover:scale-110 active:scale-90 vibrant-shadow-sm z-20"
+        >
+          <Plus size={20} className="rotate-45" />
+        </button>
       )}
-      onClick={onToggle}
-    >
-      <div className={cn(
-        "w-16 h-16 rounded-[1.25rem] border-3 border-black flex items-center justify-center transition-all shadow-[2px_2px_0px_#000]",
-        routine.completed ? "bg-black text-white" : "bg-white text-black group-hover:bg-vibrant-sun"
-      )}>
-        {routine.completed ? <CheckCircle2 size={32} strokeWidth={3} /> : <Icon size={32} strokeWidth={2.5} />}
-      </div>
-      <div className="flex-1">
-        <h4 className={cn("text-xl font-black italic tracking-tighter uppercase transition-all leading-tight", routine.completed && "line-through opacity-40")}>{routine.title}</h4>
-        <p className="text-[10px] font-black uppercase tracking-widest mt-1 opacity-50">{routine.description}</p>
-      </div>
-      <div className="text-right">
-        <span className="text-xl font-black italic block">x{routine.streak}</span>
-        <span className="text-[10px] uppercase tracking-widest opacity-40 font-black">STREAK</span>
-      </div>
     </div>
   );
 }

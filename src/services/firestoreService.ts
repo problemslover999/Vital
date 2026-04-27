@@ -134,14 +134,28 @@ export async function saveProgress(progress: UserProgress) {
   }
 }
 
-export async function getProgress() {
+export async function deleteRoutine(id: string) {
+  const user = auth.currentUser;
+  if (!user) return;
+
+  const path = `users/${user.uid}/routines/${id}`;
+  try {
+    await deleteDoc(doc(db, path));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+export async function fetchProgressHistory() {
   const user = auth.currentUser;
   if (!user) return [];
 
   const path = `users/${user.uid}/progress`;
   try {
-    const snapshot = await getDocs(collection(db, path));
-    return snapshot.docs.map(doc => doc.data() as UserProgress);
+    const q = query(collection(db, path), orderBy('date', 'desc'));
+    const snapshot = await getDocs(q);
+    // Return last 7 entries for the chart, reversed to chronological order
+    return snapshot.docs.map(doc => doc.data() as UserProgress).slice(0, 7).reverse();
   } catch (error) {
     handleFirestoreError(error, OperationType.LIST, path);
     return [];
