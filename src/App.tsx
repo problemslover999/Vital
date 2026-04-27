@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+// Vital v1.1.0 - Production Build Trigger
 import { AnimatePresence } from 'motion/react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 
