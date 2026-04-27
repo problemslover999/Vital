@@ -18,7 +18,6 @@ function getBuddy() {
 export async function chatWithBuddy(messages: Message[]) {
   try {
     const genAI = getBuddy();
-    // Using gemini-1.5-flash with the stable SDK pattern
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const history = messages.slice(0, -1).map(msg => ({
@@ -37,12 +36,33 @@ export async function chatWithBuddy(messages: Message[]) {
 
     const result = await chat.sendMessage(lastMessage);
     const response = await result.response;
-    const text = response.text();
-
-    return text || "I'm here to support you! Let's work on your health goals together.";
+    return response.text();
   } catch (error) {
     console.error("Critical Buddy Error:", error);
-    // Return a more descriptive error in development, fallback in production
     return "I'm having a bit of trouble connecting to my brain right now, but I'm still cheering for you! Let's stay active!";
+  }
+}
+
+export async function getMotivationalMessage() {
+  try {
+    const genAI = getBuddy();
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const result = await model.generateContent("Give me a very short, punchy, 1-sentence motivational health quote in a 'vibrant and bold' style.");
+    const response = await result.response;
+    return response.text();
+  } catch (error) {
+    return "Your progress is your power. Stay focused today!";
+  }
+}
+
+export async function getHealthReport(data: any) {
+  try {
+    const genAI = getBuddy();
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const result = await model.generateContent(`Analyze this health data briefly: ${JSON.stringify(data)}. Give 3 bullet points of advice.`);
+    const response = await result.response;
+    return response.text();
+  } catch (error) {
+    return "Keep maintaining your routines to see long-term results!";
   }
 }
