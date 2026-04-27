@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LogOut, User as UserIcon } from 'lucide-react';
+import { LogOut, User as UserIcon, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { logout } from '../../lib/firebase';
 
@@ -13,17 +13,17 @@ export const Header: React.FC<HeaderProps> = ({ user, onProfileClick, forceShow 
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
-    if (forceShow) {
-      setIsVisible(true);
-      return;
-    }
+    // Reset visibility whenever the user identity is confirmed or forceShow changes
+    setIsVisible(true);
+
+    if (forceShow) return;
 
     const timer = setTimeout(() => {
       setIsVisible(false);
-    }, 7000); // 7 seconds
+    }, 7000); 
 
     return () => clearTimeout(timer);
-  }, [forceShow]);
+  }, [forceShow, user?.uid]); // Bind to user ID to ensure it fires after login sync
 
   return (
     <AnimatePresence>
@@ -32,7 +32,8 @@ export const Header: React.FC<HeaderProps> = ({ user, onProfileClick, forceShow 
           initial={{ y: -100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: -100, opacity: 0 }}
-          className="fixed top-6 right-6 z-50 flex items-center gap-4 pointer-events-auto"
+          transition={{ type: "spring", damping: 20, stiffness: 100 }}
+          className="fixed top-6 right-6 z-50 flex items-center gap-2 pointer-events-auto"
         >
           <div 
             onClick={onProfileClick}
@@ -51,13 +52,22 @@ export const Header: React.FC<HeaderProps> = ({ user, onProfileClick, forceShow 
             </div>
           </div>
           
-          <button 
-            onClick={() => logout()}
-            className="w-12 h-12 bg-vibrant-coral border-3 border-black rounded-full flex items-center justify-center vibrant-shadow-sm hover:scale-110 active:scale-95 transition-all group"
-            title="Sign Out"
-          >
-            <LogOut size={20} className="text-white group-hover:rotate-12 transition-transform" />
-          </button>
+          <div className="flex flex-col gap-2">
+            <button 
+              onClick={() => logout()}
+              className="w-10 h-10 bg-vibrant-coral border-3 border-black rounded-full flex items-center justify-center vibrant-shadow-sm hover:scale-110 active:scale-95 transition-all group"
+              title="Sign Out"
+            >
+              <LogOut size={18} className="text-white group-hover:rotate-12 transition-transform" />
+            </button>
+            <button 
+              onClick={() => setIsVisible(false)}
+              className="w-10 h-10 bg-black border-3 border-black rounded-full flex items-center justify-center vibrant-shadow-sm hover:scale-110 active:scale-95 transition-all group"
+              title="Dismiss"
+            >
+              <X size={18} className="text-white" />
+            </button>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>
