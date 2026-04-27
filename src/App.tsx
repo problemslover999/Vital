@@ -33,6 +33,7 @@ import {
 
 // Components
 import { Navbar } from '@/src/components/layout/Navbar';
+import { Header } from '@/src/components/layout/Header';
 import { Dashboard } from '@/src/components/dashboard/Dashboard';
 import { RoutinesView } from '@/src/components/routines/RoutinesView';
 import { BuddyChat } from '@/src/components/buddy/BuddyChat';
@@ -209,6 +210,7 @@ export default function App() {
   return (
     <div className="min-h-screen text-[#141414] font-sans selection:bg-yellow-400">
       <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Header user={user} onProfileClick={() => setActiveTab('profile')} />
 
       <main className="pb-24 md:pb-8 md:pl-28 lg:pl-32 max-w-7xl mx-auto px-6 pt-8">
         <AnimatePresence mode="wait">
