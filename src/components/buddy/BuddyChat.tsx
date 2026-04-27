@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
-import { Zap, Plus } from 'lucide-react';
+import { Zap, SendHorizontal } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { cn } from '../../lib/utils';
 import { Message } from '../../types';
@@ -16,6 +16,18 @@ export const BuddyChat: React.FC<BuddyChatProps> = ({
   isBuddyTyping,
   onSendMessage
 }) => {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [chatMessages, isBuddyTyping]);
+
   return (
     <motion.div
       initial={{ opacity: 0, x: 20 }}
@@ -39,7 +51,10 @@ export const BuddyChat: React.FC<BuddyChatProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-vibrant-bg">
+      <div 
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto p-8 space-y-8 bg-vibrant-bg scroll-smooth"
+      >
         {chatMessages.map((msg, i) => (
           <div key={i} className={cn("flex", msg.role === 'user' ? "justify-end" : "justify-start")}>
             <div className={cn(
@@ -74,6 +89,7 @@ export const BuddyChat: React.FC<BuddyChatProps> = ({
           onSubmit={(e) => {
             e.preventDefault();
             const input = e.currentTarget.elements.namedItem('msg') as HTMLInputElement;
+            if (!input.value.trim()) return;
             onSendMessage(input.value);
             input.value = '';
           }}
@@ -82,13 +98,14 @@ export const BuddyChat: React.FC<BuddyChatProps> = ({
           <input 
             name="msg"
             placeholder="WANT SOME INTEL? ASK ME..."
+            autoComplete="off"
             className="w-full py-5 pl-8 pr-20 bg-vibrant-bg rounded-2xl border-3 border-black focus:outline-none focus:ring-4 focus:ring-vibrant-sun/30 transition-all text-sm font-black uppercase italic tracking-tight"
           />
           <button 
             type="submit"
             className="absolute right-3 top-1/2 -translate-y-1/2 w-12 h-12 bg-black rounded-xl text-white flex items-center justify-center hover:scale-105 active:scale-95 transition-transform border-2 border-black"
           >
-            <Plus size={24} className="rotate-45" />
+            <SendHorizontal size={24} />
           </button>
         </form>
       </div>
